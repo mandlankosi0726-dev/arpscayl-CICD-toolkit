@@ -1,0 +1,32 @@
+project:
+  name: python-api
+  type: python-api
+runtime:
+  language: python
+  version: "3.12"
+dependencies:
+  manager: pip
+  lockfile: requirements.txt
+quality:
+  lint: true
+  test: true
+  typecheck: false
+  coverage_minimum: 80
+security:
+  secret_scan: true
+  dependency_scan: true
+  sast: false
+  disabled_checks: []
+docker:
+  enabled: false
+  dockerfile: Dockerfile
+  image_name: python-api
+artifacts:
+  retention_days: 14
+deployment:
+  enabled: false
+  environments: [development, staging, production]
+  production_requires_approval: true
+release:
+  strategy: semver
+  tag_prefix: v

@@ -1,0 +1,143 @@
+name: Reusable SSH container deployment
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub Environment to protect and record this deployment
+        required: true
+        type: string
+      image-reference:
+        description: Container registry reference pinned to an immutable sha256 digest
+        required: true
+        type: string
+      host:
+        description: Deployment host DNS name or IPv4 address
+        required: true
+        type: string
+      user:
+        description: SSH user with permission to manage this application container
+        required: true
+        type: string
+      service-name:
+        description: Stable Docker container name used for replacement and rollback
+        required: true
+        type: string
+      host-port:
+        description: Host TCP port
+        required: true
+        type: number
+      container-port:
+        description: Container TCP port
+        required: true
+        type: number
+      health-path:
+        description: HTTP path used by the remote host to verify readiness
+        required: false
+        type: string
+        default: /health
+      ssh-port:
+        description: SSH TCP port
+        required: false
+        type: number
+        default: 22
+    secrets:
+      ssh-private-key:
+        required: true
+      ssh-known-hosts:
+        required: true
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+    steps:
+      - name: Validate deployment inputs before using SSH credentials
+        env:
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          IMAGE_REFERENCE: ${{ inputs.image-reference }}
+          DEPLOY_HOST: ${{ inputs.host }}
+          DEPLOY_USER: ${{ inputs.user }}
+          SERVICE_NAME: ${{ inputs.service-name }}
+          HOST_PORT: ${{ inputs.host-port }}
+          CONTAINER_PORT: ${{ inputs.container-port }}
+          SSH_PORT: ${{ inputs.ssh-port }}
+          HEALTH_PATH: ${{ inputs.health-path }}
+        run: |
+          python3 - <<'PY'
+          import os, re, sys
+          image = os.environ["IMAGE_REFERENCE"]
+          host = os.environ["DEPLOY_HOST"]
+          user = os.environ["DEPLOY_USER"]
+          service = os.environ["SERVICE_NAME"]
+          path = os.environ["HEALTH_PATH"]
+          errors = []
+          if os.environ["DEPLOY_ENVIRONMENT"] not in {"development", "staging", "production"}: errors.append("environment is unsupported")
+          if not re.fullmatch(r"[a-z0-9.-]+(?::[0-9]+)?/[a-z0-9._/-]+@sha256:[0-9a-f]{64}", image): errors.append("image-reference must be an immutable registry digest")
+          if not re.fullmatch(r"(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)", host) or ".." in host: errors.append("host must be a DNS name or IPv4 address")
+          if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}", user): errors.append("user contains unsupported characters")
+          if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}", service): errors.append("service-name contains unsupported characters")
+          for name in ("HOST_PORT", "CONTAINER_PORT", "SSH_PORT"):
+              try: valid = 1 <= int(os.environ[name]) <= 65535
+              except ValueError: valid = False
+              if not valid: errors.append(name.lower().replace("_", "-") + " must be between 1 and 65535")
+          if not re.fullmatch(r"/[A-Za-z0-9_./-]*", path) or ".." in path.split("/"): errors.append("health-path must be an absolute safe URL path")
+          if errors:
+              print("\n".join("ERROR: " + item for item in errors), file=sys.stderr)
+              sys.exit(1)
+          print("Deployment inputs validated.")
+          PY
+      - name: Deploy over verified SSH and roll back on failed health check
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ssh-private-key }}
+          SSH_KNOWN_HOSTS: ${{ secrets.ssh-known-hosts }}
+          SSH_PORT: ${{ inputs.ssh-port }}
+          DEPLOY_HOST: ${{ inputs.host }}
+          DEPLOY_USER: ${{ inputs.user }}
+          SERVICE_NAME: ${{ inputs.service-name }}
+          IMAGE_REFERENCE: ${{ inputs.image-reference }}
+          HOST_PORT: ${{ inputs.host-port }}
+          CONTAINER_PORT: ${{ inputs.container-port }}
+          HEALTH_PATH: ${{ inputs.health-path }}
+        run: |
+          python3 - <<'PY'
+          import os, shlex, subprocess, tempfile
+          script = r'''set -eu
+          image="$1"; service="$2"; host_port="$3"; container_port="$4"; health_path="$5"
+          previous="${service}-previous"
+          docker pull "$image"
+          if docker inspect "$service" >/dev/null 2>&1; then
+            docker rm -f "$previous" >/dev/null 2>&1 || true
+            docker rename "$service" "$previous"
+            if ! docker stop "$previous" >/dev/null; then docker rename "$previous" "$service"; exit 1; fi
+          else
+            previous=""
+          fi
+          rollback() {
+            docker rm -f "$service" >/dev/null 2>&1 || true
+            if [ -n "$previous" ]; then docker rename "$previous" "$service"; docker start "$service" >/dev/null; fi
+          }
+          if ! docker run -d --restart unless-stopped --name "$service" -p "${host_port}:${container_port}" "$image"; then rollback; exit 1; fi
+          attempt=0
+          until curl --fail --silent "http://127.0.0.1:${host_port}${health_path}" >/dev/null; do
+            attempt=$((attempt + 1))
+            if [ "$attempt" -ge 30 ]; then rollback; echo "health check failed; previous container restored" >&2; exit 1; fi
+            sleep 2
+          done
+          if [ -n "$previous" ]; then docker rm -f "$previous" >/dev/null; fi
+          echo "Deployment healthy: $image"
+          '''
+          key = os.environ["SSH_PRIVATE_KEY"]
+          known_hosts = os.environ["SSH_KNOWN_HOSTS"]
+          with tempfile.TemporaryDirectory() as directory:
+              key_path = os.path.join(directory, "key")
+              hosts_path = os.path.join(directory, "known_hosts")
+              for path, content in ((key_path, key), (hosts_path, known_hosts)):
+                  with open(path, "w", encoding="utf-8") as f: f.write(content + "\n")
+              os.chmod(key_path, 0o600)
+              args = ["bash", "-s", "--", os.environ["IMAGE_REFERENCE"], os.environ["SERVICE_NAME"], os.environ["HOST_PORT"], os.environ["CONTAINER_PORT"], os.environ["HEALTH_PATH"]]
+              remote = shlex.join(args)
+              subprocess.run(["ssh", "-i", key_path, "-p", os.environ["SSH_PORT"], "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", f"UserKnownHostsFile={hosts_path}", f'{os.environ["DEPLOY_USER"]}@{os.environ["DEPLOY_HOST"]}', remote], input=script, text=True, check=True)
+          PY

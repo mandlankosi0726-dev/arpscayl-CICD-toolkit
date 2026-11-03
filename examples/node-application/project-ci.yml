@@ -1,0 +1,32 @@
+project:
+  name: node-api
+  type: node-application
+runtime:
+  language: node
+  version: "22"
+dependencies:
+  manager: npm
+  lockfile: package-lock.json
+quality:
+  lint: true
+  test: true
+  typecheck: false
+  coverage_minimum: null
+security:
+  secret_scan: true
+  dependency_scan: true
+  sast: false
+  disabled_checks: []
+docker:
+  enabled: false
+  dockerfile: Dockerfile
+  image_name: node-api
+artifacts:
+  retention_days: 14
+deployment:
+  enabled: false
+  environments: [development, staging, production]
+  production_requires_approval: true
+release:
+  strategy: semver
+  tag_prefix: v

@@ -1,0 +1,71 @@
+name: Reusable Terraform validation
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory containing Terraform files
+        required: false
+        type: string
+        default: .
+      terraform-version:
+        description: Exact Terraform CLI version to install
+        required: false
+        type: string
+        default: "1.14.6"
+      scan-severity:
+        description: Trivy misconfiguration severity threshold
+        required: false
+        type: string
+        default: HIGH,CRITICAL
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Terraform with checksum verification
+        env:
+          TERRAFORM_VERSION: ${{ inputs.terraform-version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TERRAFORM_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'terraform-version must be an exact x.y.z version' >&2
+            exit 1
+          fi
+          archive="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
+          base="https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}"
+          curl --fail --silent --show-error --location "$base/$archive" --output "$RUNNER_TEMP/$archive"
+          curl --fail --silent --show-error --location "$base/terraform_${TERRAFORM_VERSION}_SHA256SUMS" --output "$RUNNER_TEMP/SHA256SUMS"
+          (cd "$RUNNER_TEMP" && grep -F "  $archive" SHA256SUMS | sha256sum --check --status)
+          mkdir -p "$RUNNER_TEMP/terraform-bin"
+          unzip -q "$RUNNER_TEMP/$archive" -d "$RUNNER_TEMP/terraform-bin"
+          echo "$RUNNER_TEMP/terraform-bin" >> "$GITHUB_PATH"
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive
+      - name: Initialize without backend credentials
+        run: terraform init -backend=false -input=false -no-color
+      - name: Validate Terraform configuration
+        run: terraform validate -no-color
+      - name: Validate scanner severity threshold
+        env:
+          SCAN_SEVERITY: ${{ inputs.scan-severity }}
+        run: |
+          case "$SCAN_SEVERITY" in
+            HIGH,CRITICAL|MEDIUM,HIGH,CRITICAL|LOW,MEDIUM,HIGH,CRITICAL) ;;
+            *) echo 'scan-severity must include HIGH and CRITICAL' >&2; exit 1 ;;
+          esac
+      - name: Scan Terraform configuration
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0 (verified safe release)
+        with:
+          scan-type: config
+          scan-ref: ${{ inputs.working-directory }}
+          severity: ${{ inputs.scan-severity }}
+          exit-code: "1"
+          scanners: misconfig

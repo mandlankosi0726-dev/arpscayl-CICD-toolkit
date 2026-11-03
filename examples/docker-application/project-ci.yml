@@ -1,0 +1,32 @@
+project:
+  name: dockerized-application
+  type: dockerized-application
+runtime:
+  language: docker
+  version: "24"
+dependencies:
+  manager: none
+  lockfile: none
+quality:
+  lint: true
+  test: false
+  typecheck: false
+  coverage_minimum: null
+security:
+  secret_scan: true
+  dependency_scan: true
+  sast: false
+  disabled_checks: []
+docker:
+  enabled: true
+  dockerfile: Dockerfile
+  image_name: dockerized-application
+artifacts:
+  retention_days: 14
+deployment:
+  enabled: false
+  environments: [development, staging, production]
+  production_requires_approval: true
+release:
+  strategy: semver
+  tag_prefix: v

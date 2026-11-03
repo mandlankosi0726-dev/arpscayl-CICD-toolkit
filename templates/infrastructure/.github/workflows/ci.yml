@@ -1,0 +1,14 @@
+name: Infrastructure CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  terraform:
+    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/ci-terraform.yml@v1.0.0
+    with:
+      working-directory: .
+      terraform-version: "1.14.6"
+      scan-severity: HIGH,CRITICAL

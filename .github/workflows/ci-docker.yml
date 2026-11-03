@@ -1,0 +1,102 @@
+name: Docker CI
+on:
+  workflow_call:
+    inputs:
+      context:
+        description: Docker build context directory
+        required: false
+        type: string
+        default: .
+      dockerfile:
+        description: Dockerfile path relative to the caller repository
+        required: false
+        type: string
+        default: Dockerfile
+      require-non-root:
+        description: Require an explicit non-root USER in the final Docker build stage
+        required: false
+        type: boolean
+        default: true
+      scan-severity:
+        description: Vulnerability severities that fail the image scan
+        required: false
+        type: string
+        default: HIGH,CRITICAL
+permissions:
+  contents: read
+jobs:
+  docker-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate Dockerfile safety conventions
+        env:
+          DOCKERFILE: ${{ inputs.dockerfile }}
+          REQUIRE_NON_ROOT: ${{ inputs.require-non-root }}
+        run: |
+          python3 - "$DOCKERFILE" "$REQUIRE_NON_ROOT" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+          path, require_non_root = Path(sys.argv[1]), sys.argv[2] == "true"
+          try:
+              lines = path.read_text(encoding="utf-8").splitlines()
+          except OSError as exc:
+              print(f"Unable to read Dockerfile: {exc}", file=sys.stderr)
+              raise SystemExit(1)
+          instructions = []
+          for number, line in enumerate(lines, 1):
+              match = re.match(r"([A-Za-z]+)\s+(.*)", line.strip())
+              if match and not line.lstrip().startswith("#"):
+                  instructions.append((match.group(1).upper(), match.group(2).strip(), number))
+          errors = []
+          stages = [(arg, number) for name, arg, number in instructions if name == "FROM"]
+          if not stages:
+              errors.append("Dockerfile must include at least one FROM")
+          for arg, number in stages:
+              tokens = arg.split()
+              image = next((item for item in tokens if not item.startswith("--") and item.upper() != "AS"), "")
+              if image != "scratch" and (image.endswith(":latest") or (":" not in image and "@sha256:" not in image)):
+                  errors.append(f"line {number}: base image {image!r} needs an explicit tag or digest")
+          final_stage = []
+          for instruction in instructions:
+              if instruction[0] == "FROM":
+                  final_stage = []
+              final_stage.append(instruction)
+          users = [(arg, number) for name, arg, number in final_stage if name == "USER"]
+          if users:
+              user, number = users[-1]
+              if user.lower() in {"root", "0", "0:0"} or user.lower().startswith("root:"):
+                  errors.append(f"line {number}: final image must not run as root")
+          elif require_non_root:
+              errors.append("final build stage must declare a non-root USER")
+          for error in errors:
+              print(f"ERROR: {error}", file=sys.stderr)
+          raise SystemExit(bool(errors))
+          PY
+      - name: Validate vulnerability threshold
+        env:
+          SCAN_SEVERITY: ${{ inputs.scan-severity }}
+        run: |
+          case "$SCAN_SEVERITY" in
+            HIGH,CRITICAL|MEDIUM,HIGH,CRITICAL|LOW,MEDIUM,HIGH,CRITICAL) ;;
+            *) echo 'scan-severity must include HIGH and CRITICAL' >&2; exit 1 ;;
+          esac
+      - name: Build image for verification
+        env:
+          CONTEXT: ${{ inputs.context }}
+          DOCKERFILE: ${{ inputs.dockerfile }}
+          LOCAL_IMAGE: toolkit-ci:${{ github.sha }}
+        run: docker build --file "$DOCKERFILE" --tag "$LOCAL_IMAGE" "$CONTEXT"
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0 (verified safe release)
+        with:
+          scan-type: image
+          image-ref: toolkit-ci:${{ github.sha }}
+          format: table
+          ignore-unfixed: true
+          severity: ${{ inputs.scan-severity }}
+          exit-code: "1"

@@ -1,0 +1,33 @@
+# Copy to project-ci.yml and change fields to describe a consumer.
+project:
+  name: example-service
+  type: python-api # python-api | node-application | dockerized-application | infrastructure
+runtime:
+  language: python
+  version: "3.12"
+dependencies:
+  manager: pip # pip | poetry | uv | npm | pnpm | yarn | none
+  lockfile: requirements.txt
+quality:
+  lint: true
+  test: true
+  typecheck: false
+  coverage_minimum: 80
+security:
+  secret_scan: true
+  dependency_scan: true
+  sast: false
+  disabled_checks: [] # Exceptions include check, reason, owner, and review_by.
+docker:
+  enabled: false
+  dockerfile: Dockerfile
+  image_name: example-service
+artifacts:
+  retention_days: 14
+deployment:
+  enabled: false
+  environments: [development, staging, production]
+  production_requires_approval: true
+release:
+  strategy: semver
+  tag_prefix: v

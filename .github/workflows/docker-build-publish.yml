@@ -1,0 +1,179 @@
+name: Build and publish Docker image
+on:
+  workflow_call:
+    inputs:
+      context:
+        description: Docker build context directory
+        required: false
+        type: string
+        default: .
+      dockerfile:
+        description: Dockerfile path relative to the caller repository
+        required: false
+        type: string
+        default: Dockerfile
+      image-name:
+        description: Lowercase GHCR image name, for example ghcr.io/example/service
+        required: true
+        type: string
+      publish:
+        description: Enable publish job on trusted push to main or a version tag
+        required: false
+        type: boolean
+        default: true
+      require-non-root:
+        description: Require an explicit non-root USER in the final build stage
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      image-digest:
+        description: Published GHCR immutable digest; empty when the publish job does not run
+        value: ${{ jobs.publish.outputs.digest }}
+permissions:
+  contents: read
+jobs:
+  build-verify:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ steps.meta.outputs.artifact-name }}
+      local-image: ${{ steps.meta.outputs.local-image }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate image name
+        env:
+          IMAGE_NAME: ${{ inputs.image-name }}
+        run: |
+          if ! printf '%s' "$IMAGE_NAME" | grep -Eq '^ghcr\.io/[a-z0-9._-]+/[a-z0-9._/-]+$'; then
+            echo 'image-name must be a lowercase ghcr.io owner/package path' >&2
+            exit 1
+          fi
+          if printf '%s' "$IMAGE_NAME" | grep -q '\.\.'; then
+            echo 'image-name cannot contain parent path segments' >&2
+            exit 1
+          fi
+      - name: Validate Dockerfile safety conventions
+        env:
+          DOCKERFILE: ${{ inputs.dockerfile }}
+          REQUIRE_NON_ROOT: ${{ inputs.require-non-root }}
+        run: |
+          python3 - "$DOCKERFILE" "$REQUIRE_NON_ROOT" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+          path, require_non_root = Path(sys.argv[1]), sys.argv[2] == "true"
+          try:
+              lines = path.read_text(encoding="utf-8").splitlines()
+          except OSError as exc:
+              print(f"Unable to read Dockerfile: {exc}", file=sys.stderr)
+              raise SystemExit(1)
+          instructions = []
+          for number, line in enumerate(lines, 1):
+              match = re.match(r"([A-Za-z]+)\s+(.*)", line.strip())
+              if match and not line.lstrip().startswith("#"):
+                  instructions.append((match.group(1).upper(), match.group(2).strip(), number))
+          errors = []
+          stages = [(arg, number) for name, arg, number in instructions if name == "FROM"]
+          if not stages:
+              errors.append("Dockerfile must include at least one FROM")
+          for arg, number in stages:
+              tokens = arg.split()
+              image = next((item for item in tokens if not item.startswith("--") and item.upper() != "AS"), "")
+              if image != "scratch" and (image.endswith(":latest") or (":" not in image and "@sha256:" not in image)):
+                  errors.append(f"line {number}: base image {image!r} needs an explicit tag or digest")
+          final_stage = []
+          for instruction in instructions:
+              if instruction[0] == "FROM":
+                  final_stage = []
+              final_stage.append(instruction)
+          users = [(arg, number) for name, arg, number in final_stage if name == "USER"]
+          if users:
+              user, number = users[-1]
+              if user.lower() in {"root", "0", "0:0"} or user.lower().startswith("root:"):
+                  errors.append(f"line {number}: final image must not run as root")
+          elif require_non_root:
+              errors.append("final build stage must declare a non-root USER")
+          for error in errors:
+              print(f"ERROR: {error}", file=sys.stderr)
+          raise SystemExit(bool(errors))
+          PY
+      - name: Set image metadata
+        id: meta
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          echo "local-image=toolkit-build:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "artifact-name=image-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+      - name: Build image
+        env:
+          CONTEXT: ${{ inputs.context }}
+          DOCKERFILE: ${{ inputs.dockerfile }}
+          LOCAL_IMAGE: toolkit-build:${{ github.sha }}
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+          SOURCE_REVISION: ${{ github.sha }}
+        run: docker build --file "$DOCKERFILE" --tag "$LOCAL_IMAGE" --label "org.opencontainers.image.source=$SOURCE_URL" --label "org.opencontainers.image.revision=$SOURCE_REVISION" "$CONTEXT"
+      - name: Scan image for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0 (verified safe release)
+        with:
+          scan-type: image
+          image-ref: toolkit-build:${{ github.sha }}
+          format: table
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - name: Save verified image
+        env:
+          LOCAL_IMAGE: toolkit-build:${{ github.sha }}
+        run: docker save "$LOCAL_IMAGE" --output "$RUNNER_TEMP/verified-image.tar"
+      - name: Upload verified image artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ steps.meta.outputs.artifact-name }}
+          path: ${{ runner.temp }}/verified-image.tar
+          if-no-files-found: error
+          retention-days: 1
+  publish:
+    needs: build-verify
+    if: ${{ inputs.publish && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - name: Download verified image artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.build-verify.outputs.artifact-name }}
+          path: ${{ runner.temp }}/image
+      - name: Load verified image
+        run: docker load --input "$RUNNER_TEMP/image/verified-image.tar"
+      - name: Log in to GitHub Container Registry
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Tag and push immutable commit image
+        id: push
+        env:
+          IMAGE_NAME: ${{ inputs.image-name }}
+          LOCAL_IMAGE: ${{ needs.build-verify.outputs.local-image }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          IMAGE_REF="${IMAGE_NAME}:sha-${COMMIT_SHA}"
+          docker tag "$LOCAL_IMAGE" "$IMAGE_REF"
+          PUSH_OUTPUT="$(docker push "$IMAGE_REF" 2>&1)" || { printf '%s\n' "$PUSH_OUTPUT"; exit 1; }
+          printf '%s\n' "$PUSH_OUTPUT"
+          DIGEST="$(printf '%s\n' "$PUSH_OUTPUT" | sed -nE 's/.*digest: (sha256:[0-9a-f]{64}).*/\1/p' | tail -n 1)"
+          if [ -z "$DIGEST" ]; then
+            echo 'Could not read the registry digest from docker push output' >&2
+            exit 1
+          fi
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Published ${IMAGE_NAME}@${DIGEST}"

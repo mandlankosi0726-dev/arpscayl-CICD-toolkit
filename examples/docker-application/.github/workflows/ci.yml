@@ -1,0 +1,20 @@
+name: Docker CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  docker:
+    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/ci-docker.yml@v1.0.0
+    with:
+      context: .
+      dockerfile: Dockerfile
+      require-non-root: true
+      scan-severity: HIGH,CRITICAL
+  security:
+    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/security-checks.yml@v1.0.0
+    with:
+      language: python
+      requirements-file: requirements.txt

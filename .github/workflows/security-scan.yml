@@ -1,0 +1,35 @@
+name: Security scan
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  secret-scan:
+    uses: ./.github/workflows/security-checks.yml
+    with:
+      language: python
+      run-secret-scan: true
+      run-dependency-scan: false
+  sast:
+    if: vars.CODEQL_ENABLED == 'true'
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/security-checks.yml
+    with:
+      language: python
+      run-secret-scan: false
+      run-dependency-scan: false
+      run-sast: true
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Audit Python dependencies
+        run: python3 -m pip install --disable-pip-version-check 'pip-audit==2.8.0' && pip-audit --strict .

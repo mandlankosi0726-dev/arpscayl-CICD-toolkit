@@ -1,0 +1,16 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  node:
+    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/ci-node.yml@v1.0.0
+    with:
+      node-version: "22"
+  security:
+    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/security-checks.yml@v1.0.0
+    with:
+      language: node

@@ -1,0 +1,101 @@
+name: Reusable security checks
+on:
+  workflow_call:
+    inputs:
+      language:
+        description: Dependency audit ecosystem (python or node)
+        required: true
+        type: string
+      working-directory:
+        description: Project directory within the caller repository
+        required: false
+        type: string
+        default: .
+      requirements-file:
+        description: Python requirements file used when language is python
+        required: false
+        type: string
+        default: requirements.txt
+      run-secret-scan:
+        description: Scan the checked-out repository history with Gitleaks
+        required: false
+        type: boolean
+        default: true
+      run-dependency-scan:
+        description: Audit Python requirements or the npm lockfile
+        required: false
+        type: boolean
+        default: true
+      run-sast:
+        description: Run CodeQL for Python or JavaScript and upload results to code scanning
+        required: false
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  secrets:
+    if: inputs.run-secret-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Scan repository history with Gitleaks
+        run: docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/repo -v "$GITHUB_WORKSPACE:/repo" ghcr.io/gitleaks/gitleaks@sha256:691af3c7c5a48b16f187ce3446d5f194838f91238f27270ed36eef6359a574d9 git --redact /repo
+  dependencies:
+    if: inputs.run-dependency-scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate dependency ecosystem
+        if: inputs.language != 'python' && inputs.language != 'node'
+        run: echo 'language must be python or node when dependency scanning is enabled' >&2; exit 1
+      - name: Set up Python
+        if: inputs.language == 'python'
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.12"
+      - name: Audit Python dependencies
+        if: inputs.language == 'python'
+        env:
+          REQUIREMENTS_FILE: ${{ inputs.requirements-file }}
+        run: python -m pip install --disable-pip-version-check 'pip-audit==2.8.0' && pip-audit --strict -r "$REQUIREMENTS_FILE"
+      - name: Set up Node.js
+        if: inputs.language == 'node'
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: "22"
+      - name: Audit npm lockfile
+        if: inputs.language == 'node'
+        run: npm audit --audit-level=high
+  sast:
+    if: inputs.run-sast
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate SAST language
+        if: inputs.language != 'python' && inputs.language != 'node'
+        run: echo 'language must be python or node for CodeQL' >&2; exit 1
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+        with:
+          languages: ${{ inputs.language == 'python' && 'python' || 'javascript-typescript' }}
+          build-mode: none
+      - name: Analyze and upload results
+        uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0

@@ -1,0 +1,36 @@
+project:
+  name: example-infrastructure
+  type: infrastructure
+runtime:
+  language: terraform
+  version: "1.14.6"
+dependencies:
+  manager: none
+  lockfile: none
+quality:
+  lint: true
+  test: false
+  typecheck: false
+  coverage_minimum: null
+security:
+  secret_scan: true
+  dependency_scan: false
+  sast: false
+  disabled_checks:
+    - check: terraform-provider-audit
+      reason: The provider-free starter declares no external providers; enable provider auditing when adding one.
+      owner: platform-team
+      review_by: "2027-01-31"
+docker:
+  enabled: false
+  dockerfile: Dockerfile
+  image_name: example-infrastructure
+artifacts:
+  retention_days: 14
+deployment:
+  enabled: false
+  environments: [development, staging, production]
+  production_requires_approval: true
+release:
+  strategy: semver
+  tag_prefix: v

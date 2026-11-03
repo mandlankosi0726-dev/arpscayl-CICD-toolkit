@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arpscayl.example/schemas/pipeline-config.schema.json",
+  "title": "ArpScayl Pipeline Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project", "runtime", "dependencies", "quality", "security", "docker", "artifacts", "deployment", "release"],
+  "properties": {
+    "project": {"type": "object", "additionalProperties": false, "required": ["name", "type"], "properties": {"name": {"type": "string", "minLength": 1, "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"}, "type": {"enum": ["python-api", "node-application", "dockerized-application", "infrastructure"]}}},
+    "runtime": {"type": "object", "additionalProperties": false, "required": ["language", "version"], "properties": {"language": {"enum": ["python", "node", "docker", "terraform", "ansible", "kubernetes"]}, "version": {"type": "string", "minLength": 1}}},
+    "dependencies": {"type": "object", "additionalProperties": false, "required": ["manager", "lockfile"], "properties": {"manager": {"enum": ["pip", "poetry", "uv", "npm", "pnpm", "yarn", "none"]}, "lockfile": {"type": "string", "minLength": 1}}},
+    "quality": {"type": "object", "additionalProperties": false, "required": ["lint", "test", "typecheck", "coverage_minimum"], "properties": {"lint": {"type": "boolean"}, "test": {"type": "boolean"}, "typecheck": {"type": "boolean"}, "coverage_minimum": {"type": ["integer", "null"], "minimum": 0, "maximum": 100}}},
+    "security": {"type": "object", "additionalProperties": false, "required": ["secret_scan", "dependency_scan", "sast", "disabled_checks"], "properties": {"secret_scan": {"type": "boolean"}, "dependency_scan": {"type": "boolean"}, "sast": {"type": "boolean"}, "disabled_checks": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["check", "reason", "owner", "review_by"], "properties": {"check": {"type": "string", "minLength": 1}, "reason": {"type": "string", "minLength": 1}, "owner": {"type": "string", "minLength": 1}, "review_by": {"type": "string", "format": "date"}}}}}},
+    "docker": {"type": "object", "additionalProperties": false, "required": ["enabled", "dockerfile", "image_name"], "properties": {"enabled": {"type": "boolean"}, "dockerfile": {"type": "string", "minLength": 1}, "image_name": {"type": "string", "minLength": 1}}},
+    "artifacts": {"type": "object", "additionalProperties": false, "required": ["retention_days"], "properties": {"retention_days": {"type": "integer", "minimum": 1, "maximum": 90}}},
+    "deployment": {"type": "object", "additionalProperties": false, "required": ["enabled", "environments", "production_requires_approval"], "properties": {"enabled": {"type": "boolean"}, "environments": {"type": "array", "uniqueItems": true, "items": {"enum": ["development", "staging", "production"]}}, "production_requires_approval": {"type": "boolean"}}},
+    "release": {"type": "object", "additionalProperties": false, "required": ["strategy", "tag_prefix"], "properties": {"strategy": {"enum": ["semver", "calendar"]}, "tag_prefix": {"type": "string"}}}
+  }
+}

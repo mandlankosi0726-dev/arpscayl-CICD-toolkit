@@ -1,0 +1,21 @@
+name: Test toolkit
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install test dependencies
+        run: python3 -m pip install --user --disable-pip-version-check 'PyYAML==6.0.2' 'pytest==8.3.5' 'ruff==0.11.0'
+      - name: Run unit tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Lint Python
+        run: python3 -m ruff check scripts tests
