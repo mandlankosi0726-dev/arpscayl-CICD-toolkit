@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   backend:
-    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/ci-python.yml@v0.1.0
+    uses: mandlankosi0726-dev/arpscayl-CICD-toolkit/.github/workflows/ci-python.yml@v0.1.0
     with:
       working-directory: backend
       python-version: "3.12"

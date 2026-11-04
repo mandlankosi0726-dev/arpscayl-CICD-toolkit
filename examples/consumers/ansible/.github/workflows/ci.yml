@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   ansible:
-    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/ci-ansible.yml@v0.1.0
+    uses: mandlankosi0726-dev/arpscayl-CICD-toolkit/.github/workflows/ci-ansible.yml@v0.1.0
     with:
       working-directory: ansible
       python-version: "3.12"
