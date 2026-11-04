@@ -12,6 +12,10 @@ dependencies = ["PyYAML>=6.0,<7", "jsonschema>=4.23,<5"]
 [project.optional-dependencies]
 dev = ["pytest>=8,<9", "ruff>=0.9,<1"]
 
+[tool.setuptools.packages.find]
+include = ["scripts*"]
+exclude = ["configs*", "schemas*", "templates*", "examples*", "tests*"]
+
 [tool.setuptools]
 packages = ["scripts"]
 
