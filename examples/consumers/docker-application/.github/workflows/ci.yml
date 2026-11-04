@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   docker:
-    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/ci-docker.yml@v0.1.0
+    uses: mandlankosi0726-dev/arpscayl-CICD-toolkit/.github/workflows/ci-docker.yml@v0.1.0
     with:
       context: .
       dockerfile: Dockerfile

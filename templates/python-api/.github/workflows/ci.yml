@@ -7,13 +7,13 @@ permissions:
   contents: read
 jobs:
   python:
-    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/ci-python.yml@v1.0.0
+    uses: mandlankosi0726-dev/arpscayl-cicd-toolkit/.github/workflows/ci-python.yml@v1.0.0
     with:
       python-version: "3.12"
       requirements-file: requirements.txt
       coverage-minimum: 80
   security:
-    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/security-checks.yml@v1.0.0
+    uses: mandlankosi0726-dev/arpscayl-cicd-toolkit/.github/workflows/security-checks.yml@v1.0.0
     with:
       language: python
       requirements-file: requirements.txt

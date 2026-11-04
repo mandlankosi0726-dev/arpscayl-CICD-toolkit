@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   security:
-    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/ci-security.yml@v0.1.0
+    uses: mandlankosi0726-dev/arpscayl-CICD-toolkit/.github/workflows/ci-security.yml@v0.1.0
     with:
       working-directory: security-template
       python-version: "3.12"

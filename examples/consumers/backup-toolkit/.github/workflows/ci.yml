@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   backup:
-    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/ci-backup.yml@v0.1.0
+    uses: mandlankosi0726-dev/arpscayl-CICD-toolkit/.github/workflows/ci-backup.yml@v0.1.0
     with:
       working-directory: backup-recovery
       python-version: "3.12"
