@@ -89,7 +89,7 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertIn("pull_request", workflow["on"])
                 self.assertIn("main", workflow["on"]["push"]["branches"])
                 for job in workflow["jobs"].values():
-                    self.assertTrue(job["uses"].startswith("your-org/arpscayl-CICD-toolkit/"))
+                    self.assertTrue(job["uses"].startswith("mandlankosi0726-dev/arpscayl-CICD-toolkit/"))
                     self.assertNotIn("secrets", job)
                     self.assertNotIn("environment", job)
 
