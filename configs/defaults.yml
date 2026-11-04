@@ -1,12 +1,12 @@
 # Copy to project-ci.yml and change fields to describe a consumer.
 project:
   name: example-service
-  type: python-api # python-api | node-application | dockerized-application | infrastructure
+  type: python-api # python-api | node-application | bun-frontend | dockerized-application | infrastructure | ansible-playbook | security-toolkit | backup-toolkit
 runtime:
   language: python
   version: "3.12"
 dependencies:
-  manager: pip # pip | poetry | uv | npm | pnpm | yarn | none
+  manager: pip # pip | poetry | uv | npm | pnpm | yarn | bun | none
   lockfile: requirements.txt
 quality:
   lint: true

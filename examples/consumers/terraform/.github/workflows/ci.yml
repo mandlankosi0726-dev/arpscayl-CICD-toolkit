@@ -1,0 +1,14 @@
+name: Terraform validation
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  terraform:
+    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/ci-terraform.yml@v0.1.0
+    with:
+      working-directory: infrastructure
+      terraform-version: "1.10.5"
+      scan-severity: HIGH,CRITICAL

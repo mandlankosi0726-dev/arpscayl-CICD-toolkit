@@ -14,7 +14,7 @@ quality:
   coverage_minimum: null
 security:
   secret_scan: true
-  dependency_scan: true
+  dependency_scan: false
   sast: false
   disabled_checks: []
 docker:

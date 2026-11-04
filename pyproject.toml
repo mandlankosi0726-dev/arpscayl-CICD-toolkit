@@ -7,7 +7,7 @@ name = "arpscayl-cicd-toolkit"
 version = "0.1.0"
 description = "Reusable CI/CD workflows and project validation utilities"
 requires-python = ">=3.12"
-dependencies = ["PyYAML>=6.0,<7"]
+dependencies = ["PyYAML>=6.0,<7", "jsonschema>=4.23,<5"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<9", "ruff>=0.9,<1"]

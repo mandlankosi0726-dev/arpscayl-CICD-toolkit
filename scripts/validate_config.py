@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Validate a project-ci.yml file against the toolkit JSON Schema."""
+
 from __future__ import annotations
 
 import argparse
@@ -19,14 +20,22 @@ SCHEMA_PATH = ROOT / "schemas" / "pipeline-config.schema.json"
 TYPE_LANGUAGE = {
     "python-api": "python",
     "node-application": "node",
+    "bun-frontend": "bun",
     "dockerized-application": "docker",
     "infrastructure": "terraform",
+    "ansible-playbook": "ansible",
+    "security-toolkit": "python",
+    "backup-toolkit": "python",
 }
 TYPE_MANAGERS = {
     "python-api": {"pip", "poetry", "uv"},
     "node-application": {"npm", "pnpm", "yarn"},
+    "bun-frontend": {"bun"},
     "dockerized-application": {"none", "pip", "poetry", "uv", "npm", "pnpm", "yarn"},
     "infrastructure": {"none"},
+    "ansible-playbook": {"none"},
+    "security-toolkit": {"pip", "poetry", "uv"},
+    "backup-toolkit": {"pip", "poetry", "uv"},
 }
 DEPENDENCY_SCAN_MANAGERS = {"pip", "poetry", "uv", "npm", "pnpm", "yarn"}
 
@@ -78,7 +87,9 @@ def _semantic_errors(config: Any) -> list[str]:
     errors: list[str] = []
     project = config.get("project") if isinstance(config.get("project"), dict) else {}
     runtime = config.get("runtime") if isinstance(config.get("runtime"), dict) else {}
-    dependencies = config.get("dependencies") if isinstance(config.get("dependencies"), dict) else {}
+    dependencies = (
+        config.get("dependencies") if isinstance(config.get("dependencies"), dict) else {}
+    )
     security = config.get("security") if isinstance(config.get("security"), dict) else {}
     deployment = config.get("deployment") if isinstance(config.get("deployment"), dict) else {}
     project_type = project.get("type")
@@ -105,7 +116,9 @@ def _semantic_errors(config: Any) -> list[str]:
         and "production" in environments
         and deployment.get("production_requires_approval") is False
     ):
-        errors.append("$.deployment.production_requires_approval: must be true when production is listed")
+        errors.append(
+            "$.deployment.production_requires_approval: must be true when production is listed"
+        )
     today = date.today()
     checks = security.get("disabled_checks")
     if isinstance(checks, list):
@@ -120,7 +133,9 @@ def _semantic_errors(config: Any) -> list[str]:
             except ValueError:
                 continue
             if expiry < today:
-                errors.append(f"$.security.disabled_checks[{index}].review_by: exception expired on {review_by}")
+                errors.append(
+                    f"$.security.disabled_checks[{index}].review_by: exception expired on {review_by}"
+                )
     return errors
 
 

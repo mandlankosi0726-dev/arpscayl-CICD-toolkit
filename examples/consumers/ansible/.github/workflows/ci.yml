@@ -1,0 +1,14 @@
+name: Ansible validation
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  ansible:
+    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/ci-ansible.yml@v0.1.0
+    with:
+      working-directory: ansible
+      python-version: "3.12"
+      ansible-core-version: "2.20.7"

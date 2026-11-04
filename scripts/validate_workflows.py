@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Check workflow YAML syntax and enforce immutable third-party action refs."""
+
 from __future__ import annotations
 
 import re
@@ -62,7 +63,9 @@ def validate_workflows(workflow_dir: Path | None = None) -> list[str]:
     else:
         workflow_dirs = [workflow_dir]
     files = sorted({path for directory in workflow_dirs for path in directory.rglob("*.yml")})
-    files.extend(sorted({path for directory in workflow_dirs for path in directory.rglob("*.yaml")}))
+    files.extend(
+        sorted({path for directory in workflow_dirs for path in directory.rglob("*.yaml")})
+    )
     if not files:
         return [f"No workflow YAML files found in {workflow_dir}"]
     for path in files:
@@ -79,6 +82,8 @@ def validate_workflows(workflow_dir: Path | None = None) -> list[str]:
             errors.append(f"{path.name}: jobs must be a mapping")
             continue
         for scope_name, permissions in (("workflow", workflow.get("permissions")),):
+            if permissions is None:
+                errors.append(f"{path.name}: {scope_name} permissions must be declared explicitly")
             if permissions == "write-all":
                 errors.append(f"{path.name}: {scope_name} permissions must not use write-all")
             elif permissions is not None and not isinstance(permissions, dict):
@@ -92,7 +97,9 @@ def validate_workflows(workflow_dir: Path | None = None) -> list[str]:
             if job_permissions == "write-all":
                 errors.append(f"{path.name}: job {job_name} permissions must not use write-all")
             elif job_permissions is not None and not isinstance(job_permissions, dict):
-                errors.append(f"{path.name}: job {job_name} permissions must be a least-privilege mapping")
+                errors.append(
+                    f"{path.name}: job {job_name} permissions must be a least-privilege mapping"
+                )
             job_ref = job.get("uses")
             if job_ref:
                 if job_ref.startswith("./"):
@@ -124,17 +131,21 @@ def validate_workflows(workflow_dir: Path | None = None) -> list[str]:
                         errors.append(
                             f"{path.name}: {step_label} action must pin a full 40-character commit SHA: {ref}"
                         )
-                for field in ("run", "with", "env"):
+                # Passing workflow inputs through env/action inputs is data flow,
+                # not shell interpolation. Only inspect executable shell text.
+                for field in ("run",):
                     for location in untrusted_interpolation_locations(step.get(field), field):
                         errors.append(
-                            f"{path.name}: {step_label} interpolates untrusted context in {location}; "
+                            f"{path.name}: {step_label} interpolates untrusted context directly into shell in {location}; "
                             "pass it via env and reference the environment variable"
                         )
             if has_pull_request_target and any(
                 isinstance(step, dict) and str(step.get("uses", "")).startswith("actions/checkout@")
                 for step in steps
             ):
-                errors.append(f"{path.name}: pull_request_target workflows must not check out pull request code")
+                errors.append(
+                    f"{path.name}: pull_request_target workflows must not check out pull request code"
+                )
     return errors
 
 

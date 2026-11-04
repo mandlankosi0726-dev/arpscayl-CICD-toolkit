@@ -1,6 +1,6 @@
 # Getting started
 
-Install Python 3.12 or newer and run `python -m pip install -e '.[dev]'`. To create a starter, run `python scripts/scaffold_project.py --template python-api --output ../my-api` or select `node-api`, `dockerized-application`, or `infrastructure`. Replace `your-org` in the caller workflow with the toolkit repository owner and choose a published release tag. A consumer repository can call Python CI as follows:
+Install Python 3.12 or newer and run `python -m pip install -e '.[dev]'`. To create a starter, run `python scripts/scaffold_project.py --template python-api --output ../my-api` or select `node-api`, `dockerized-application`, or `infrastructure`. For Bun, Ansible, Security and Backup projects, use the matching reusable workflow and examples under `examples/consumers/`. Replace `your-org` in the caller workflow with the toolkit repository owner and choose a published protected release tag or reviewed full commit SHA. A consumer repository can call Python CI as follows:
 
 ```yaml
 name: CI
@@ -12,14 +12,14 @@ permissions:
   contents: read
 jobs:
   python:
-    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/ci-python.yml@v1.0.0
+    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/ci-python.yml@v0.1.0
     with:
       python-version: "3.12"
       requirements-file: requirements.txt
       coverage-minimum: 80
 ```
 
-Consumers must pin a released toolkit tag or a reviewed full commit SHA, and must not consume a mutable branch. Copy `configs/defaults.yml` to `project-ci.yml`; edit fields and validate with `python scripts/validate_config.py --config project-ci.yml`.
+The `v0.1.0` ref above is illustrative until a protected tag is published. Consumers must pin a released toolkit tag or a reviewed full commit SHA, and must not consume a mutable branch. Copy `configs/defaults.yml` to `project-ci.yml`; edit fields and validate with `python scripts/validate_config.py --config project-ci.yml`.
 
 Python CI installs the configured requirements file, then runs Ruff and pytest; coverage is opt-in through a positive threshold. If enabled, mypy must be present in the project's installed dependencies. Node CI requires a checked-in `package-lock.json`, then runs `npm ci`, `npm run lint`, `npm test`, and `npm run build`. An optional type check invokes the package's `typecheck` script.
 

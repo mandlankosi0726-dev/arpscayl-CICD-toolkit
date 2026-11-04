@@ -6,7 +6,7 @@ A reusable, versioned set of GitHub Actions workflows, project conventions, vali
 
 The toolkit gives teams a consistent starting point for CI, security checks, container delivery, controlled deployment, and release traceability. It does not provision GitHub settings, secrets, servers, registries, or production environment protection; administrators configure those separately. Passing automated checks is useful evidence, not proof that software is secure.
 
-Supported project categories are Python, Node.js, Dockerized applications, and Terraform infrastructure. The toolkit includes reusable Python, Node.js, Docker, Terraform, security, SSH container deployment, and release workflows, with matching templates. Ansible/Kubernetes validation and automated Kubernetes deployment remain future extensions.
+Supported project categories are Python, npm-based Node.js, Bun frontends, Dockerized applications, Terraform infrastructure, Ansible provisioning, Python security tooling, and Python backup tooling. The toolkit includes read-only reusable validation workflows for these project types, plus separate image publishing, SSH container deployment, and release workflows. Kubernetes validation and automated Kubernetes deployment remain future extensions.
 
 ## Quick start
 
@@ -27,13 +27,13 @@ Scaffold a starter with `python scripts/scaffold_project.py --template python-ap
 
 ## Consume a workflow
 
-The templates show reusable workflow calls, for example `your-org/arpscayl-cicd-toolkit/.github/workflows/ci-python.yml@v1.0.0`. Replace `your-org` and select a published toolkit release. Do not use a mutable branch as a production dependency. Use a full reviewed commit SHA when stronger immutability is required. Reusable workflow files live under `.github/workflows/`, which is GitHub's required location.
+The templates show reusable workflow calls, for example `your-org/arpscayl-CICD-toolkit/.github/workflows/ci-python.yml@v0.1.0`. Replace `your-org` and select a published protected toolkit release; the example tag is illustrative until it exists. Do not use a mutable branch as a production dependency. Use a reviewed full commit SHA when stronger immutability is required. Reusable workflow files live under `.github/workflows/`, which is GitHub's required location.
 
 For production deployments, configure GitHub Environments and required reviewers in repository settings, then store credentials as environment secrets. Declaring `environment:` in workflow YAML does not configure its protection rules.
 
 The SSH deployment workflow only accepts an image pinned by registry digest and requires verified SSH host keys. Production access is governed by the caller's GitHub Environment rules; the workflow does not create reviewers or authorize a live target for you.
 
-See [deployment](docs/deployment-guide.md), [versioning](docs/versioning.md), and [client onboarding](docs/client-onboarding.md) for the operational setup and release process. Use `make validate`, `make test`, and `make lint` for local checks.
+See [workflow reference](docs/workflow-reference.md), [consumer examples](docs/consumer-workflows.md), [deployment](docs/deployment-guide.md), [versioning](docs/versioning.md), and [client onboarding](docs/client-onboarding.md) for the operational setup and release process. Use `make validate`, `make test`, and `make lint` for local checks.
 
 ## Contributing and failures
 

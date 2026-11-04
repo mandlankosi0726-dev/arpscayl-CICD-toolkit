@@ -9,17 +9,23 @@ Runs Python checks for the caller repository using its source and configuration.
 | `python-version` | No | `3.12` | Version passed to setup-python. |
 | `working-directory` | No | `.` | Project directory within the checked-out caller repository. |
 | `requirements-file` | No | `requirements.txt` | Requirements file installed before checks; empty string skips it. |
+| `project-install` | No | empty | Optional pip install target, for example `.[dev,api]`. Use only in trusted project CI; project build backends execute code. |
 | `run-typecheck` | No | `false` | Runs `python -m mypy .`; caller dependencies must include/configure mypy. |
+| `run-compileall` | No | `false` | Compiles Python source with `compileall`. |
+| `compile-path` | No | `.` | File or directory passed to compileall. |
+| `run-pip-check` | No | `false` | Runs `python -m pip check` after dependency installation. |
+| `run-pip-audit` | No | `false` | Installs the selected exact pip-audit version and audits the requirements file or installed environment. |
+| `pip-audit-version` | No | `2.10.1` | Exact `x.y.z` version; non-exact values fail validation. |
 | `coverage-minimum` | No | `0` | Positive value enables pytest-cov and threshold enforcement; zero disables coverage. |
 
-No secrets are required. The workflow grants `contents: read`. It runs checkout, Python setup, dependency installation, Ruff, pytest, optional mypy, and uploads JUnit XML and coverage XML reports for seven days when present. It returns no workflow outputs. Install, lint, test, coverage, and optional type-check failures fail the job. Requirements are trusted caller-repository code and must be reviewed; pip installs can execute build backend code. Values are passed as action inputs or environment values rather than interpolated into shell source.
+No secrets are required. The workflow grants `contents: read`. It runs checkout, Python setup, dependency installation, Ruff, pytest, optional compileall, dependency consistency/audit, optional mypy, and uploads JUnit XML and coverage XML reports for seven days when present. It returns no workflow outputs. Install, lint, test, coverage, compile, dependency, audit and optional type-check failures fail the job. Requirements and project build backends are caller-controlled code and must be reviewed; CI exposes no deployment credentials. Values are passed as action inputs or environment values rather than interpolated into shell source.
 
 Example caller:
 
 ```yaml
 jobs:
   python-ci:
-    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/ci-python.yml@v1.0.0
+    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/ci-python.yml@v0.1.0
     with:
       python-version: "3.12"
       requirements-file: requirements.txt
@@ -43,12 +49,27 @@ Example caller:
 ```yaml
 jobs:
   node-ci:
-    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/ci-node.yml@v1.0.0
+    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/ci-node.yml@v0.1.0
     with:
       node-version: "22"
 ```
 
 Replace `your-org` and `v1.0.0` with the actual toolkit repository owner and a published version. A reviewed full commit SHA can be used when stronger immutability is required.
+
+## Bun frontend CI (`.github/workflows/ci-bun.yml`)
+
+Supports projects with `bun.lock` without requiring `package-lock.json`. Inputs are `bun-version` (`1.4.4`), `working-directory` (`.`), and `run-typecheck` (`false`). The Bun version is explicit. CI runs `bun install --frozen-lockfile`, `bun run lint`, `bun run test`, `bun run build`, and optional `bun run typecheck`. It requires no secrets and grants only `contents: read`.
+
+```yaml
+jobs:
+  frontend:
+    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/ci-bun.yml@v0.1.0
+    with:
+      bun-version: "1.4.4"
+      run-typecheck: true
+```
+
+The reference `v0.1.0` is illustrative until that tag is published and protected. Use the actual toolkit owner and a protected release tag, or a reviewed full toolkit commit SHA.
 
 ## Security checks (`.github/workflows/security-checks.yml`)
 
@@ -66,7 +87,7 @@ The default workflow permission is `contents: read`; secret and dependency scans
 ```yaml
 jobs:
   security:
-    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/security-checks.yml@v1.0.0
+    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/security-checks.yml@v0.1.0
     with:
       language: python
       requirements-file: requirements.txt
@@ -86,7 +107,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/docker-build-publish.yml@v1.0.0
+    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/docker-build-publish.yml@v0.1.0
     with:
       image-name: ghcr.io/your-org/your-app
 ```
@@ -102,7 +123,7 @@ Example caller (configure `production` with required reviewers and save both SSH
 ```yaml
 jobs:
   deploy:
-    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/deploy-container.yml@v1.0.0
+    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/deploy-container.yml@v0.1.0
     with:
       environment: production
       image-reference: ghcr.io/your-org/your-app@sha256:REPLACE_WITH_VERIFIED_DIGEST
@@ -125,14 +146,26 @@ Pushing a `vMAJOR.MINOR.PATCH` tag creates a GitHub Release with generated notes
 
 ## Terraform CI (`.github/workflows/ci-terraform.yml`)
 
-Inputs are `working-directory` (`.`), exact `terraform-version` (`1.14.6`), and `scan-severity` (`HIGH,CRITICAL`). The workflow installs Terraform from HashiCorp's release site, verifies the archive against the published SHA256SUMS entry, runs recursive `terraform fmt -check`, initializes with `-backend=false`, runs `terraform validate`, and scans IaC misconfigurations with Trivy. It requires no credentials and grants `contents: read`. Formatting, initialization, validation, checksum, and qualifying Trivy findings fail the job. It does not access remote backends, plan, or apply infrastructure.
+Inputs are `working-directory` (`.`), exact `terraform-version` (`1.10.5`), and `scan-severity` (`HIGH,CRITICAL`). The workflow installs Terraform from HashiCorp's release site, verifies the archive against the published SHA256SUMS entry, runs recursive `terraform fmt -check`, initializes with `-backend=false`, runs `terraform validate`, and scans IaC misconfigurations with Trivy. It requires no credentials and grants `contents: read`. Formatting, initialization, validation, checksum, and qualifying Trivy findings fail the job. It does not access remote backends, plan, or apply infrastructure. Select the exact CLI version supported by the repository; the default matches ArpScayl's current 1.10.5 staging pin.
 
 ```yaml
 jobs:
   terraform:
-    uses: your-org/arpscayl-cicd-toolkit/.github/workflows/ci-terraform.yml@v1.0.0
+    uses: your-org/arpscayl-CICD-toolkit/.github/workflows/ci-terraform.yml@v0.1.0
     with:
       working-directory: infrastructure
-      terraform-version: "1.14.6"
+      terraform-version: "1.10.5"
       scan-severity: HIGH,CRITICAL
 ```
+
+## Ansible validation (`.github/workflows/ci-ansible.yml`)
+
+Inputs are `working-directory` (`.`), `python-version` (`3.12`) and exact `ansible-core-version` (`2.20.7`, limited to the template's 2.18–2.20 support series). It installs `ansible-lint==25.12.2`, pinned Ansible collections when `requirements.yml` is present, parses the checked-in inert development inventory, syntax-checks playbooks, runs `yamllint` and repository pytest tests. It takes no secrets or client inventory input. Syntax checks and static lint do not connect to hosts or prove host changes safe.
+
+## Security toolkit validation (`.github/workflows/ci-security.yml`)
+
+Installs the toolkit with development/API extras and pinned `pip-audit`, runs Ruff lint/format, mypy, pytest, validates a policy with `arpscayl-security policy validate`, and audits installed dependencies. The job has `contents: read`, accepts no secrets, and does not connect to registered or client assets. Unit/API tests are not a substitute for authorized disposable-host or hosted database testing.
+
+## Backup toolkit validation (`.github/workflows/ci-backup.yml`)
+
+Installs the toolkit development extras and pinned `pip-audit`, runs Ruff lint/format, mypy, pytest and validates a backup policy. The job has `contents: read`, accepts no credentials and accesses only repository fixtures/temp paths. It does not run scheduled backups, connect to remote storage, or claim a restore is application-valid.

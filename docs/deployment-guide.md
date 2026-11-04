@@ -12,6 +12,8 @@ Create `development`, `staging`, and `production` GitHub Environments as appropr
 
 Call the reusable workflow from a consumer repository; see [the workflow reference](workflow-reference.md#ssh-container-deployment-githubworkflowsdeploy-containeryml). Use a concurrency group scoped to the service and environment. Keep the deployment job separate from ordinary pull-request CI, and ensure only protected branches or reviewed release tags can reach production.
 
+The reusable validation workflows (`ci-bun`, `ci-python`, `ci-docker`, `ci-terraform`, `ci-ansible`, `ci-security`, and `ci-backup`) use `contents: read`, do not accept secrets and do not target infrastructure. They must remain separate caller jobs from publishing/deployment. A YAML `environment:` value does not create an environment: an administrator must create it, set required reviewers and deployment branch/tag restrictions, and add only the environment-specific secrets required by the selected deployment workflow. Validation workflows should not reference those secrets or protected environments.
+
 ## Image and rollback behavior
 
 Deploy the digest output from the successful Docker build-and-publish workflow. A tag such as `:latest` is not accepted. The remote host pulls the digest before changing the running service. It renames and stops the previous container, starts the new one on the configured port, and polls the configured HTTP path for up to 60 seconds. A failed `docker run` or health check removes the candidate and restores the previous container. A successful health check removes the previous container; retain other image digests in the registry according to your recovery policy.

@@ -2,7 +2,7 @@
 
 The toolkit uses semantic version tags in the form `vMAJOR.MINOR.PATCH`. A major version may break workflow inputs, outputs, or behavior; a minor version adds backwards-compatible capabilities; a patch fixes defects without changing the supported interface. Maintain a changelog entry for each release, call out required permissions and migration steps, and use GitHub-generated release notes as supplemental context.
 
-Reusable workflows should be referenced with a published version tag such as `@v1.2.0`. Pin to a reviewed full commit SHA when a consumer needs stronger immutability, and document the release represented by that SHA. Do not permanently reference `main` or another mutable branch. A security fix should be released promptly and consumers should update their pinned version or SHA through normal review.
+Reusable workflows should be referenced with a published protected version tag such as `@v1.2.0`, or a reviewed full commit SHA. Document the source commit represented by each selected tag/SHA in the consumer's change record. Do not reference `main` or another mutable branch. Protect `v*` tags with a GitHub ruleset that limits creation/update to release maintainers; a semver-shaped tag alone is not immutable. A security fix should be released promptly and consumers should update their pinned version or SHA through normal review.
 
 Before creating a release:
 
@@ -12,4 +12,4 @@ Before creating a release:
 4. Merge the reviewed change, then create a protected `vMAJOR.MINOR.PATCH` tag at that commit.
 5. Confirm the GitHub Release and attached manifest identify the intended commit.
 
-Consumers should upgrade in a test repository first, verify the run and permission requirements, then roll the release through projects. For breaking changes, maintain the prior major workflow for an announced support window where practical and provide a migration guide. If a pinned release is vulnerable, stop new use immediately, publish a fixed release, and notify consumers through the project's normal advisory channel.
+Consumers should upgrade in a test repository first, verify the run and permission requirements, then roll the release through projects. Record the prior and new ref, caller workflow diff, CI run URL, changed inputs/permissions, and rollback ref. For breaking changes, maintain the prior major workflow for an announced support window where practical and provide a migration guide. If a pinned release is vulnerable, stop new use immediately, publish a fixed release, and notify consumers through the project's normal advisory channel. Reusable workflow tags and examples do not mean a release has been published; verify the tag and manifest before adoption.

@@ -13,15 +13,45 @@ on:
         type: string
         default: .
       requirements-file:
-        description: Pinned requirements file; empty string skips dependency installation
+        description: Requirements file to install; empty string skips file installation
         required: false
         type: string
         default: requirements.txt
+      project-install:
+        description: Optional pip install target such as .[dev,api]
+        required: false
+        type: string
+        default: ""
       run-typecheck:
         description: Run mypy (the project must install/configure it)
         required: false
         type: boolean
         default: false
+      run-compileall:
+        description: Compile Python source files before running tests
+        required: false
+        type: boolean
+        default: false
+      compile-path:
+        description: File or directory passed to compileall
+        required: false
+        type: string
+        default: .
+      run-pip-check:
+        description: Check installed dependency consistency
+        required: false
+        type: boolean
+        default: false
+      run-pip-audit:
+        description: Audit the selected requirements file or installed environment
+        required: false
+        type: boolean
+        default: false
+      pip-audit-version:
+        description: Exact pip-audit package version to install when auditing
+        required: false
+        type: string
+        default: "2.10.1"
       coverage-minimum:
         description: Minimum test coverage percentage; 0 disables coverage enforcement
         required: false
@@ -49,8 +79,28 @@ jobs:
         env:
           REQUIREMENTS_FILE: ${{ inputs.requirements-file }}
         run: python -m pip install --disable-pip-version-check -r "$REQUIREMENTS_FILE"
+      - name: Install project and extras
+        if: inputs.project-install != ''
+        env:
+          PROJECT_INSTALL: ${{ inputs.project-install }}
+        run: python -m pip install --disable-pip-version-check "$PROJECT_INSTALL"
       - name: Install CI tools
         run: python -m pip install --disable-pip-version-check 'ruff==0.11.0' 'pytest==8.3.5' 'pytest-cov==6.0.0'
+      - name: Install dependency auditor
+        if: inputs.run-pip-audit
+        env:
+          PIP_AUDIT_VERSION: ${{ inputs.pip-audit-version }}
+        run: |
+          if [[ ! "$PIP_AUDIT_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'pip-audit-version must be an exact x.y.z version' >&2
+            exit 1
+          fi
+          python -m pip install --disable-pip-version-check "pip-audit==$PIP_AUDIT_VERSION"
+      - name: Compile Python sources
+        if: inputs.run-compileall
+        env:
+          COMPILE_PATH: ${{ inputs.compile-path }}
+        run: python -m compileall -q "$COMPILE_PATH"
       - name: Lint with Ruff
         run: python -m ruff check .
       - name: Test with pytest
@@ -61,6 +111,19 @@ jobs:
             python -m pytest -q --junitxml=test-results.xml
           else
             python -m pytest -q --cov --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under="$COVERAGE_MINIMUM" --junitxml=test-results.xml
+          fi
+      - name: Check dependency consistency
+        if: inputs.run-pip-check
+        run: python -m pip check
+      - name: Audit Python dependencies
+        if: inputs.run-pip-audit
+        env:
+          REQUIREMENTS_FILE: ${{ inputs.requirements-file }}
+        run: |
+          if [ -n "$REQUIREMENTS_FILE" ]; then
+            python -m pip_audit --strict -r "$REQUIREMENTS_FILE"
+          else
+            python -m pip_audit --strict
           fi
       - name: Type check with mypy
         if: inputs.run-typecheck

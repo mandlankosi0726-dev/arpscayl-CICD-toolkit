@@ -32,4 +32,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Audit Python dependencies
-        run: python3 -m pip install --disable-pip-version-check 'pip-audit==2.8.0' && pip-audit --strict .
+        run: python3 -m pip install --disable-pip-version-check 'pip-audit==2.10.1' && pip-audit --strict .

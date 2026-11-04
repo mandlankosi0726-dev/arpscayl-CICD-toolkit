@@ -1,0 +1,19 @@
+{
+  "lockfileVersion": 2,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "arpscayl-bun-ci-fixture",
+      "dependencies": {
+        "@fixture/greeting": "workspace:*",
+      },
+    },
+    "packages/greeting": {
+      "name": "@fixture/greeting",
+      "version": "1.0.0",
+    },
+  },
+  "packages": {
+    "@fixture/greeting": ["@fixture/greeting@workspace:packages/greeting"],
+  }
+}
